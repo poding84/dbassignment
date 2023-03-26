@@ -40,12 +40,18 @@ AS : "as"i
 IS : "is"i
 OR : "or"i
 AND : "and"i
-COMP_OP : "<" | ">" | "=" | ">=" | "<=" | "!="
+comp_op : "<" | ">" | "=" | ">=" | "<=" | "!="
 INSERT : "insert"i
 INTO : "into"i
 VALUES : "values"i
 DELETE : "delete"i
 
+// Custom Keywords
+SET : "set"i
+EQUAL : "="
+EXPLAIN : "explain"i
+DESCRIBE : "describe"i
+UPDATE : "update"i
 
 // QUERY
 command : query_list | EXIT ";"
@@ -53,6 +59,13 @@ query_list : (query ";")+
 query : create_table_query
       | select_query
       | insert_query
+      | drop_table_query
+      | explain_query
+      | describe_query
+      | desc_query
+      | show_tables_query
+      | delete_query
+      | update_tables_query
 
 
 // CREATE TABLE
@@ -75,7 +88,15 @@ column_name : IDENTIFIER
 
 
 // DROP TABLE, EXPLAIN, DESCRIBE, DESC, SHOW TABLES
+drop_table_query : DROP TABLE table_name
 
+explain_query : EXPLAIN table_name
+
+describe_query : DESCRIBE table_name
+
+desc_query : DESC table_name
+
+show_tables_query : SHOW TABLES
 
 // SELECT
 select_query : SELECT select_list table_expression
@@ -95,7 +116,7 @@ boolean_test : predicate
 parenthesized_boolean_expr : LP boolean_expr RP
 predicate : comparison_predicate
           | null_predicate
-comparison_predicate : comp_operand COMP_OP comp_operand
+comparison_predicate : comp_operand comp_op comp_operand
 comp_operand : comparable_value
              | [table_name "."] column_name
 comparable_value : INT | STR | DATE
@@ -104,7 +125,11 @@ null_operation : IS [NOT] NULL
 
 
 // INSERT
+insert_query : INSERT INTO table_name [column_name_list] VALUES comparable_value_list
+comparable_value_list: LP comparable_value ("," comparable_value)* RP
 
 // DELETE
+delete_query : DELETE FROM table_name [where_clause]
 
 // UPDATE TABLES
+update_tables_query : UPDATE table_name SET column_name EQUAL comparable_value [where_clause]
