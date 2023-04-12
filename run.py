@@ -1,5 +1,5 @@
 from lark import Transformer, Lark, Tree, Token
-
+from database import myDatabase
 from typing import List, Union
 
 # Declare const for printing the DBMS prompt
@@ -10,40 +10,52 @@ class MyTransformer(Transformer):
     
     # Print function for DBMS
     def print_request(self, request):
-        print(PROMPT_CONST + request)
+        if request is not None and request != "" :
+            print(PROMPT_CONST + request)
     
     def create_table_query(self, items: List[Union[Tree, Token]]):
-        self.print_request("'CREATE TABLE' requested")
+        message = myDatabase.create_table(items)
+        self.print_request(message)
         
     def drop_table_query(self, items):
-        self.print_request("'DROP TABLE' requested")
+        message = myDatabase.drop_table(items)
+        self.print_request(message)
         
     def select_query(self, items):
-        self.print_request("'SELECT' requested")
+        message = myDatabase.select(items)
+        self.print_request(message)
         
     def insert_query(self, items):
-        self.print_request("'INSERT' requested")
+        message = myDatabase.insert(items)
+        self.print_request(message)
         
     def drop_table_query(self, items):
-        self.print_request("'DROP TABLE' requested")
+        message = myDatabase.drop_table(items)
+        self.print_request(message)
         
     def explain_query(self, items):
-        self.print_request("'EXPLAIN' requested")
+        message = myDatabase.explain(items)
+        self.print_request(message)
         
     def describe_query(self, items):
-        self.print_request("'DESCRIBE' requested")
+        message = myDatabase.explain(items)
+        self.print_request(message)
         
     def desc_query(self, items):
-        self.print_request("'DESC' requested")
+        message = myDatabase.explain(items)
+        self.print_request(message)
         
     def show_tables_query(self, items):
-        self.print_request("'SHOW TABLES' requested")
+        message = myDatabase.show_tables(items)
+        self.print_request(message)
         
     def delete_query(self, items):
-        self.print_request("'DELETE' requested")
+        message = myDatabase.delete(items)
+        self.print_request(message)
         
     def update_tables_query(self, items):
-        self.print_request("'UPDATE' requested")
+        message = myDatabase.update_tables(items)
+        self.print_request(message)
     
     # This will return True to terminate
     def EXIT(self, items):
