@@ -29,10 +29,6 @@ class MyTransformer(Transformer):
         message = myDatabase.insert(items)
         self.print_request(message)
         
-    def drop_table_query(self, items):
-        message = myDatabase.drop_table(items)
-        self.print_request(message)
-        
     def explain_query(self, items):
         message = myDatabase.explain(items)
         self.print_request(message)

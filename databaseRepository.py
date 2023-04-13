@@ -1,6 +1,23 @@
-from typing import List, Union, Tuple, Dict
+from typing import List, Union, Tuple, Dict, Optional
 from databaseInstance import DatabaseInstance
 from message import Message, BORDER_LINE
+
+class Query:
+    class Select :
+        def __init__(self, content) -> None:
+            pass
+    
+    class TableReference :
+        def __init__(self, table_name, ref_name) -> None:
+            self.table_name = table_name
+            self.ref_name = ref_name
+    
+    
+    def __init__(self, select_list: List[Select], from_clause: List[TableReference], where_clause) -> None:
+        self.select_list = select_list
+        self.from_clause = from_clause
+        self.where_clause = where_clause
+
 
 class ColumnDefinition:
     CHAR = "char"
@@ -83,12 +100,12 @@ class Schema:
         self.column_dict = {}
         for column in self.column_definitions:
             self.column_dict[column.column_name] = column
-            if column.column_name in self.primary_key_column.column_list:
+            if self.primary_key_column is not None and column.column_name in self.primary_key_column.column_list:
                 column.not_null = True
 
     def key_check(self) -> Tuple[bool, str]:
         if len(self.columns) != len(set(self.columns)) :
-            return False, Message.DuplicateColumnDefError.getMessage()
+            return False, Message.DuplicateColumnDefError.get_message()
         
         pk_exist = False
         for table_constraint in self.table_constraints:
@@ -97,34 +114,34 @@ class Schema:
             if table_constraint.is_primary_key() and not pk_exist:
                 pk_exist = True
             elif table_constraint.is_primary_key() and pk_exist :
-                return False, Message.DuplicatePrimaryKeyDefError.getMessage()
+                return False, Message.DuplicatePrimaryKeyDefError.get_message()
             
                             
             ref_table = dbrepo.get_table_instance(table_constraint.reference_table)
             if ref_table is None and not table_constraint.is_primary_key():
-                return False, Message.ReferenceTableExistenceError.getMessage()
+                return False, Message.ReferenceTableExistenceError.get_message()
 
             if not table_constraint.is_primary_key() :
                 if not set(table_constraint.reference_column_list).issubset(set(ref_table.schema.columns)):
-                    return False, Message.ReferenceColumnExistenceError.getMessage()
+                    return False, Message.ReferenceColumnExistenceError.get_message()
 
                 if set(ref_table.schema.primary_key_column.column_list) != set(table_constraint.reference_column_list) :
-                    return False, Message.ReferenceNonPrimaryKeyError.getMessage()
+                    return False, Message.ReferenceNonPrimaryKeyError.get_message()
             
             for index, column_name in enumerate(table_constraint.column_list):
                 # Check whether the key column is existing in column list
                 if column_name not in self.columns:
-                    return False, Message.NonExistingColumnDefError.getMessage(column_name)
+                    return False, Message.NonExistingColumnDefError.get_message(column_name)
                 
                 curr_col = self.get_column(column_name)
                 
                 if not (curr_col.data_len is None or curr_col.data_len > 0) :
-                    return False, Message.CharLengthError.getMessage()
+                    return False, Message.CharLengthError.get_message()
 
                 if not table_constraint.is_primary_key():
                     ref_col = ref_table.schema.get_column(table_constraint.reference_column_list[index])
                     if not curr_col.equal_type_with(ref_col):
-                        return False, Message.ReferenceTypeError.getMessage()
+                        return False, Message.ReferenceTypeError.get_message()
 
 
         self.setup()
@@ -175,6 +192,29 @@ class Table:
             "schema" : self.schema.to_dict(),
             "rows" : self.rows
         }
+        
+    def references(self, target_table_name: str):
+        for table_constraint in self.schema.table_constraints:
+            if not table_constraint.is_primary_key():
+                if table_constraint.reference_table == target_table_name :
+                    return True
+
+        return False
+    
+    def insert_row(self, row, column_list):
+        if column_list is not None:
+            row_dict = {}
+            for index in range(len(row)):
+                row_dict[column_list[index]] = row[index]
+            
+            new_row = []
+            for column in self.schema.columns:
+                new_row.append(row_dict[column])
+            self.rows.append(new_row)
+        else :
+            self.rows.append(row)
+        
+        return True, Message.InsertResult.get_message()
 
 class DatabaseRepository:
     tables: Dict[str, Table]
@@ -186,14 +226,17 @@ class DatabaseRepository:
     def load_from_instance(self) :
         table_dicts = self.dbInstance.getTableDict()
         for table_name, table_dict in table_dicts.items():
-            self.tables[table_name] = self.table_dict_to_class(table_dict)
+            self.tables[table_name] = self.table_dict_to_class(table_name = table_name, item = table_dict)
             
-    def table_dict_to_class(self, item: dict):
-        return Table(item=item)
+    def table_dict_to_class(self, table_name: str, item: dict):
+        return Table(
+            table_name=table_name,
+            item=item
+        )
     
     def create_table(self, table_name: str, table_element_list: List[Union[ColumnDefinition, TableConstraint]]):
         if table_name in self.tables :
-            return Message.TableExistenceError.getMessage()
+            return Message.TableExistenceError.get_message()
 
         column_definitions = []
         table_constraints = []
@@ -216,27 +259,43 @@ class DatabaseRepository:
             schema=schema
         )
         
-        self.dbInstance.add_table(table_name, new_table.to_dict())
-        self.tables[table_name] = new_table
-        return Message.CreateTableSuccess.getMessage(table_name)
+        self._save_table(new_table)
+        return Message.CreateTableSuccess.get_message(table_name)
         
-    def drop_table(self):
-        pass
+    def drop_table(self, table_name: str):
+        if table_name not in self.tables :
+            return Message.NoSuchTable.get_message()
         
-    def select(self):
-        pass
+        for t_name, t_inst in self.tables.items():
+            if t_inst.references(table_name) :
+                return Message.DropReferencedTableError.get_message(t_name)
         
-    def insert(self):
-        pass
+        self._drop_table(table_name)
+        return Message.DropSuccess.get_message(table_name)
         
-    def drop_table(self):
-        pass
+    def select(self, query: Query):
+        for table_ref in query.from_clause:
+            if table_ref.table_name not in self.tables :
+                return Message.NoSuchTable.get_message()
+            
+        return self._show_query(*self._parse_query(query))
+        
+    def insert(self, table_name: str, row: List[str], column_list: Optional[List[str]]):
+        if table_name not in self.tables:
+            return Message.NoSuchTable.get_message()
+        
+        success, message = self.tables[table_name].insert_row(row, column_list)
+        if success:
+            self._save_table(self.tables[table_name])
+        
+        return message
+        
         
     def explain(self, table_name):
         if table_name not in self.tables:
-            return Message.NoSuchTable.getMessage()
+            return Message.NoSuchTable.get_message()
         else :
-            return self._show_table(table_name, True)
+            return self._show_table(table_name)
         
     def show_tables(self):
         line = "\n"
@@ -258,7 +317,51 @@ class DatabaseRepository:
         
         return self.tables[table_name]
     
-    def _show_table(self, table_name, include_headline = False):
+    def _parse_query(self, query:Query):
+        column_list = []
+        rows = []
+        widths = []
+        for table_ref in query.from_clause: # Currently only one table
+            table = self.tables[table_ref.table_name]
+            for column in table.schema.columns:
+                column_list.append(column)
+                widths.append(len(column))
+            
+            for row in table.rows:
+                rows.append(row)
+                for index in range(len(row)):
+                    widths[index] = max(widths[index], len(row[index]))
+                
+        return column_list, rows, widths
+    
+    def _show_query(self, column_list, rows, widths):
+        line = "\n"
+        col_list = [c.upper() for c in column_list]
+        for vars in [None, col_list, None, *rows, None]:
+            for index in range(len(widths)):
+                if vars is None:
+                    line += "+" + "-" * (widths[index]+2)
+                else:
+                    line += "| " + vars[index] + " " * (widths[index] - len(vars[index]) + 1)
+            
+            if vars is None:
+                line += "+\n"
+            else:
+                line += "|\n"
+                
+        return line
+    
+    def _save_table(self, table: Table):
+        self.dbInstance.add_table(table.table_name, table.to_dict())
+        self.tables[table.table_name] = table
+        return
+    
+    def _drop_table(self, table_name: str):
+        self.dbInstance.drop_table(table_name)
+        self.tables.pop(table_name)
+        return
+    
+    def _show_table(self, table_name):
 
         contents = [("column_name", "type", "null", "key")]
         content_widths = [11, 4, 4, 3]
@@ -280,13 +383,8 @@ class DatabaseRepository:
             contents.append((column_name, column_type, column_null, column_key))
             content_widths = [max(content_widths[index], len(contents[-1][index])) for index in range(4)]
         
-        
-        
         line = "\n"
-                
-        if include_headline:
-            line += BORDER_LINE + "\n"
-                
+        line += BORDER_LINE + "\n"        
         line += f"table_name [{table_name}]\n"    
         
         for content in contents:

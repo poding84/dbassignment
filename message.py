@@ -20,7 +20,7 @@ class Message(Enum):
     InsertResult = 15
     SelectTableExistenceError = 16
     
-    def getMessage(self, arg = "") -> str :
+    def get_message(self, arg = "") -> str :
         message: str
         need_args = False
         if self == Message.SyntaxError :

@@ -24,3 +24,7 @@ class DatabaseInstance:
     def add_table(self, table_name: str, table_dict: dict) :
         self.mydb.put(bytes(table_name, 'utf-8'), json.dumps(table_dict).encode('utf-8'))
         return
+    
+    def drop_table(self, table_name:str):
+        self.mydb.delete(bytes(table_name, 'utf-8'))
+        return

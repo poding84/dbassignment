@@ -1,7 +1,6 @@
 from lark import Tree, Token
 from typing import List, Union, Optional
-from databaseRepository import ColumnDefinition, TableConstraint, dbrepo
-from message import Message
+from databaseRepository import ColumnDefinition, TableConstraint, Query, dbrepo
 
 class Parser:
     def __init__(self) -> None:
@@ -39,9 +38,22 @@ class Parser:
             )
             
     def parse_column_list(item: Tree) :
+        if item is None:
+            return None
         li = []
         for column in item.children[1:-1]:
             li.append(column.children[0].lower())
+        return li
+
+    def parse_value_list(item: Tree):
+        if item is None:
+            return None
+        li = []
+        for column in item.children[1:-1]:
+            if column.children[0].type == "STR":
+                li.append(column.children[0][1:-1])
+            else :
+                li.append(column.children[0])
         return li
     
     def parse_column_definition(item: Tree) -> ColumnDefinition:
@@ -58,6 +70,31 @@ class Parser:
             return item.children[0], None
         else :
             return item.children[0], item.children[2]
+
+    def parse_select_list(item: Tree):
+        li = []
+        for child in item.children:
+            if child.data == "STR":
+                li.append(Query.Select(child[1:-1]))
+            else :
+                li.append(Query.Select(child))
+        return li
+
+    def parse_from_clause(item: Tree):
+        li = []
+        for child in item.children[1:]:
+            table_name = child.children[0].children[0].children[0].lower()
+            ref_name = child.children[0].children[2]
+            if ref_name is not None:
+                ref_name = ref_name.children[0].lower()
+            li.append(Query.TableReference(
+                table_name=table_name,
+                ref_name=ref_name
+            ))
+        return li
+
+    def parse_where_clause(item):
+        pass
 
 class Database:
     def __init__(self) -> None:
@@ -76,16 +113,24 @@ class Database:
         return dbrepo.create_table(table_name=table_name, table_element_list=table_element_list)
         
     def drop_table(self, items: List[Union[Tree, Token]]) -> Optional[str]:
-        self.pretty_print(items)
+        table_name = Parser.parse_table_name(items[2])
+        return dbrepo.drop_table(table_name)
         
     def select(self, items: List[Union[Tree, Token]]) -> Optional[str]:
-        self.pretty_print(items)
+        select_list = Parser.parse_select_list(items[1])
+        from_clause = Parser.parse_from_clause(items[2].children[0])
+        where_clause = Parser.parse_where_clause(items[2].children[1])
+        return dbrepo.select(Query(
+            select_list=select_list,
+            from_clause=from_clause,
+            where_clause=where_clause
+        ))
         
     def insert(self, items: List[Union[Tree, Token]]) -> Optional[str]:
-        self.pretty_print(items)
-        
-    def drop_table(self, items: List[Union[Tree, Token]]) -> Optional[str]:
-        self.pretty_print(items)
+        table_name = Parser.parse_table_name(items[2])
+        column_list = Parser.parse_column_list(items[3])
+        row = Parser.parse_value_list(items[5])
+        return dbrepo.insert(table_name, row, column_list)
         
     def explain(self, items: List[Union[Tree, Token]]) -> Optional[str]:
         table_name = Parser.parse_table_name(items[1])
