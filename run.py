@@ -7,6 +7,13 @@ PROMPT_CONST = "DB_2018-10371> "
 
 # Execute the actual query
 class MyTransformer(Transformer):
+    """
+    Transformer is only used for parsing the query string to Tree form.
+    The actual query parsing is done in the myDatabase which is the
+    Instance of database class.
+    """
+    
+    
     
     # Print function for DBMS
     def print_request(self, request):

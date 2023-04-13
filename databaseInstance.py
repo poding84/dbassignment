@@ -2,6 +2,10 @@ from berkeleydb import db
 import json
 
 class DatabaseInstance:
+    """
+    This class only have responsibility to storing the table_name and table_dict as key/value data
+    When the instance is initialized, it will load the tables from berkeley db
+    """
     def __init__(self) -> None:
         self.mydb = db.DB()
         self.mydb.open('myDB.db', dbtype=db.DB_HASH, flags=db.DB_CREATE)

@@ -3,6 +3,10 @@ from databaseInstance import DatabaseInstance
 from message import Message, BORDER_LINE
 
 class Query:
+    """
+    Store the query into easier form than the tree.
+    Will be used later to process the query
+    """
     class Select :
         def __init__(self, content) -> None:
             pass
@@ -20,6 +24,9 @@ class Query:
 
 
 class ColumnDefinition:
+    """
+    Store the column definition into easier form than the tree.
+    """
     CHAR = "char"
     INT = "int"
     DATE = "date"
@@ -45,6 +52,9 @@ class ColumnDefinition:
         return self.data_type == other.data_type and self.data_len == other.data_len
 
 class TableConstraint:
+    """
+    Store the table constraints into easier form than the tree.
+    """
     FOREIGN_KEY = "foreign_key"
     PRIMARY_KEY = "primary_key"
     
@@ -66,6 +76,11 @@ class TableConstraint:
         return self.key_type == TableConstraint.PRIMARY_KEY
 
 class Schema:
+    """
+    Main class that store the schema of the table.
+    This class will be in charge of all the schema-related processes such as invalid reference checking
+    """
+    
     def __init__(self, column_definitions = None, table_constraints = None, item: dict = None) -> None:
         if item is None:
             self.column_definitions = column_definitions
@@ -104,6 +119,11 @@ class Schema:
                 column.not_null = True
 
     def key_check(self) -> Tuple[bool, str]:
+        """
+        Check whether the given schema is valid or not.
+        Must be called before creating the table.
+        """
+        
         if len(self.columns) != len(set(self.columns)) :
             return False, Message.DuplicateColumnDefError.get_message()
         
@@ -116,15 +136,18 @@ class Schema:
             elif table_constraint.is_primary_key() and pk_exist :
                 return False, Message.DuplicatePrimaryKeyDefError.get_message()
             
-                            
+            
             ref_table = dbrepo.get_table_instance(table_constraint.reference_table)
+            # Check whether refereced table exists
             if ref_table is None and not table_constraint.is_primary_key():
                 return False, Message.ReferenceTableExistenceError.get_message()
 
             if not table_constraint.is_primary_key() :
+                # Check whether the reference column list is subset of the reference table's columns
                 if not set(table_constraint.reference_column_list).issubset(set(ref_table.schema.columns)):
                     return False, Message.ReferenceColumnExistenceError.get_message()
 
+                # Check whether the reference table's primary key is equal to the reference column list
                 if set(ref_table.schema.primary_key_column.column_list) != set(table_constraint.reference_column_list) :
                     return False, Message.ReferenceNonPrimaryKeyError.get_message()
             
@@ -135,9 +158,11 @@ class Schema:
                 
                 curr_col = self.get_column(column_name)
                 
+                # Check data length
                 if not (curr_col.data_len is None or curr_col.data_len > 0) :
                     return False, Message.CharLengthError.get_message()
 
+                # Check type of referenced columns
                 if not table_constraint.is_primary_key():
                     ref_col = ref_table.schema.get_column(table_constraint.reference_column_list[index])
                     if not curr_col.equal_type_with(ref_col):
@@ -178,6 +203,12 @@ class Schema:
         }
 
 class Table:
+    """
+    This class stores the whole information of the table such as rows, schemas, etc..
+    And also, this class can be encoded into dictionary, also can be decoded from the dictionary.
+    The reason of it is because we will store the binary form of dictionary of each table with key-value pair in the berkeley db.
+    """
+    
     def __init__(self, table_name: str = "", schema: Schema = None, item: dict = None) -> None:
         self.table_name = table_name
         if item is None:
@@ -217,8 +248,20 @@ class Table:
         return True, Message.InsertResult.get_message()
 
 class DatabaseRepository:
+    """
+    Abstraction layer between the berkeley db and the project's custom database.
+    DatabaseRepository will save itself values to the berkeley db whenever there is a change.
+    All the query processing logic is done in this repository.
+    """
+    
+    # This tables variable saves the tables as a class form
+    # All the queries will be applied both this variable and db instance
     tables: Dict[str, Table]
+    
     def __init__(self) -> None:
+        """
+        When the class is initialized, it will load the tables which are in dictionary form
+        """
         self.tables = {}
         self.dbInstance = DatabaseInstance()
         self.load_from_instance()

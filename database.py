@@ -3,6 +3,11 @@ from typing import List, Union, Optional
 from databaseRepository import ColumnDefinition, TableConstraint, Query, dbrepo
 
 class Parser:
+    """
+    Parser parses the query into the custom define classes.
+    These will support the functions that makes easier to process the query.
+    """
+    
     def __init__(self) -> None:
         pass
     
@@ -97,6 +102,12 @@ class Parser:
         pass
 
 class Database:
+    """
+    Parse the tree-formed query to several classes using Parser.
+    The dbrepo which is the instance of databaseRepository will process the actual queries such as
+    creating tables, inserts, selects, etc.
+    Database does not know about how the database looks like, but only provide the known form of queries to dbrepo.
+    """
     def __init__(self) -> None:
         pass
     
